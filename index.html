@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Reliance IT Operations Dashboard</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js"></script>
+<script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
 <style>
   :root {
     --blue: #2a78d6;
@@ -54,7 +54,8 @@
   #userBadge { font-size: 12px; color: var(--text-muted); }
 
   /* Section label */
-  .section-label { font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin: 20px 0 10px; }
+  .section-label { font-size: 15px; font-weight: 700; letter-spacing: 0.01em; color: var(--text); margin: 28px 0 12px; padding-bottom: 6px; border-bottom: 2px solid var(--blue); }
+  .section-label:first-of-type { margin-top: 4px; }
 
   /* KPI row */
   .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 4px; }
@@ -85,6 +86,11 @@
   .card { background: var(--card); border-radius: 12px; border: 0.5px solid var(--border); padding: 16px 18px; }
   .card-title { font-size: 13px; font-weight: 500; margin-bottom: 12px; color: var(--text); }
   .chart-wrap { position: relative; }
+  .chart-wrap-scroll { height: 150px !important; }
+  .cat-legend-scroll { max-height: 110px; overflow-y: auto; margin-top: 8px; padding-right: 4px; }
+  .cat-legend-row { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-sec); padding: 3px 0; }
+  .cat-legend-row .leg-sq { width: 9px; height: 9px; border-radius: 2px; flex-shrink: 0; }
+  .cat-legend-row .leg-count { margin-left: auto; font-weight: 500; color: var(--text); }
 
   /* Legend */
   .leg { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 8px; }
@@ -101,6 +107,7 @@
 
   /* Ticket list */
   .ticket-list { list-style: none; }
+  .ticket-list-scroll { max-height: 420px; overflow-y: auto; }
   .ti-row { display: flex; align-items: flex-start; gap: 8px; padding: 8px 0; border-bottom: 0.5px solid var(--border); }
   .ti-row:last-child { border-bottom: none; }
   .badge { font-size: 10px; padding: 2px 8px; border-radius: 4px; font-weight: 500; flex-shrink: 0; white-space: nowrap; margin-top: 1px; }
@@ -112,8 +119,9 @@
   .b-p2   { background: #faeeda; color: #854f0b; }
   .b-p3   { background: #f1efe8; color: #5f5e5a; }
   .ti-info { flex: 1; min-width: 0; }
-  .ti-title { font-size: 12px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ti-title { font-size: 12px; color: var(--text); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .ti-meta  { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+  .ti-desc  { font-size: 11px; color: var(--text-sec); margin-top: 3px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 
   /* Filters */
   .filters { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; }
@@ -172,25 +180,6 @@
     </div>
   </div>
 
-  <!-- INFRASTRUCTURE SECTION -->
-  <div class="section-label">Infrastructure status — today</div>
-  <div class="infra-strip" id="infraStrip"></div>
-
-  <div class="kpi-row" style="margin-top:10px" id="infraKpiRow"></div>
-
-  <div class="charts-row" style="margin-top:12px">
-    <div class="card">
-      <div class="card-title">System reliability — all time (%)</div>
-      <div class="rel-table-wrap" id="relTableWrap"></div>
-    </div>
-    <div class="card">
-      <div class="card-title">Daily check history — last 30 days</div>
-      <div class="chart-wrap" style="height:200px">
-        <canvas id="infraHistChart" role="img" aria-label="Infrastructure check history last 30 days">System check pass/fail/warning history.</canvas>
-      </div>
-    </div>
-  </div>
-
   <!-- HELPDESK SECTION -->
   <div class="section-label">IT helpdesk tickets</div>
 
@@ -216,9 +205,10 @@
     </div>
     <div class="card">
       <div class="card-title">By category</div>
-      <div class="chart-wrap" style="height:200px">
+      <div class="chart-wrap chart-wrap-scroll" style="height:200px">
         <canvas id="hdCatChart" role="img" aria-label="Tickets by category donut chart">Ticket category breakdown.</canvas>
       </div>
+      <div class="cat-legend-scroll" id="hdCatLegend"></div>
     </div>
   </div>
 
@@ -240,11 +230,30 @@
   <div class="charts-row">
     <div class="card">
       <div class="card-title">Open &amp; in-progress tickets</div>
-      <ul class="ticket-list" id="openTickets"></ul>
+      <ul class="ticket-list ticket-list-scroll" id="openTickets"></ul>
     </div>
     <div class="card">
       <div class="card-title">Recent closures</div>
-      <ul class="ticket-list" id="recentClosed"></ul>
+      <ul class="ticket-list ticket-list-scroll" id="recentClosed"></ul>
+    </div>
+  </div>
+
+  <!-- INFRASTRUCTURE SECTION -->
+  <div class="section-label">Infrastructure status — today</div>
+  <div class="infra-strip" id="infraStrip"></div>
+
+  <div class="kpi-row" style="margin-top:10px" id="infraKpiRow"></div>
+
+  <div class="charts-row" style="margin-top:12px">
+    <div class="card">
+      <div class="card-title">System reliability — all time (%)</div>
+      <div class="rel-table-wrap" id="relTableWrap"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Daily check history — last 30 days</div>
+      <div class="chart-wrap" style="height:200px">
+        <canvas id="infraHistChart" role="img" aria-label="Infrastructure check history last 30 days">System check pass/fail/warning history.</canvas>
+      </div>
     </div>
   </div>
 
@@ -501,17 +510,22 @@ function renderHelpdesk(tickets) {
   const catMap = {};
   tickets.forEach(t => { const c = t.Category || 'Uncategorised'; catMap[c] = (catMap[c]||0)+1; });
   const catLabels = Object.keys(catMap).sort((a,b) => catMap[b]-catMap[a]);
-  const catColors = ['#2a78d6','#1baf7a','#eda100','#4a3aa7','#e34948','#eb6834','#e87ba4','#888780'];
+  const catColors = ['#2a78d6','#1baf7a','#eda100','#4a3aa7','#e34948','#eb6834','#e87ba4','#888780','#0f9b8e','#7a5195','#bc5090','#ffa600','#003f5c','#58508d','#ff6361'];
 
   if (hdCatChartInst) hdCatChartInst.destroy();
   hdCatChartInst = new Chart(document.getElementById('hdCatChart'), {
     type: 'doughnut',
     data: {
       labels: catLabels,
-      datasets: [{ data: catLabels.map(l => catMap[l]), backgroundColor: catColors.slice(0, catLabels.length), borderWidth:0, hoverOffset:4 }]
+      datasets: [{ data: catLabels.map(l => catMap[l]), backgroundColor: catColors.length >= catLabels.length ? catColors.slice(0, catLabels.length) : catLabels.map((_,i) => catColors[i % catColors.length]), borderWidth:0, hoverOffset:4 }]
     },
-    options: { responsive:true, maintainAspectRatio:false, cutout:'60%', plugins:{ legend:{ position:'bottom', labels:{ color:'#52514e', font:{size:10}, padding:8, boxWidth:9, boxHeight:9 } }, tooltip:{ callbacks:{ label: c => ` ${c.label}: ${c.parsed}` } } } }
+    options: { responsive:true, maintainAspectRatio:false, cutout:'62%', plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label: c => ` ${c.label}: ${c.parsed}` } } } }
   });
+
+  document.getElementById('hdCatLegend').innerHTML = catLabels.map((l, i) => {
+    const color = catColors[i % catColors.length];
+    return `<div class="cat-legend-row"><span class="leg-sq" style="background:${color}"></span><span>${l}</span><span class="leg-count">${catMap[l]}</span></div>`;
+  }).join('');
 
   // Status bars
   const statusMap = {};
@@ -571,20 +585,53 @@ function ticketRow(t, showClosed) {
   const priClass = { 'Critical':'b-p1','High':'b-p2','Medium':'b-p3','Low':'b-p3' };
   const sc = statusClass[t.Status] || 'b-open';
   const pc = priClass[t.Priority] || 'b-p3';
-  const title = t.Title || 'Untitled';
-  const assignee = t.AssignedTo ? (t.AssignedTo.LookupValue || t.AssignedTo) : 'Unassigned';
+  const requester = t.RequesterName || t['Requester Name'] || 'Unknown requester';
+  const category = t.Category || 'Uncategorised';
+  const description = t.Description || t.description || t.Title || 'No description provided';
+  const rawAssignee = t.AssignedTo ? (t.AssignedTo.LookupValue || t.AssignedTo) : '';
+  const assignee = rawAssignee && rawAssignee.trim() ? rawAssignee : 'Azar Alampanah';
   const created = t.Created ? new Date(t.Created).toLocaleDateString('en-GB',{day:'numeric',month:'short'}) : '';
   return `<li class="ti-row">
     <span class="badge ${sc}">${t.Status||'Open'}</span>
     <span class="badge ${pc}" style="margin-left:2px">${t.Priority||'—'}</span>
     <div class="ti-info">
-      <div class="ti-title">${title}</div>
-      <div class="ti-meta">${t.RequesterName||''} · ${assignee} · ${created}</div>
+      <div class="ti-title">${requester} — ${category}</div>
+      <div class="ti-meta">Assigned to ${assignee} · ${created}</div>
+      <div class="ti-desc">${description}</div>
     </div>
   </li>`;
 }
 
 // ─── INFRA SECTION ────────────────────────────────────────────────────────────
+const SYSTEM_FRIENDLY_NAMES = {
+  'SVR': 'File Server',
+  'SVR-RELIANCE': 'File Server',
+  'HOST': 'Main Server',
+  'ISP': 'Internet Connection',
+  'ISP1': 'Internet (Primary)',
+  'ISP2': 'Internet (Backup)',
+  'WAN1': 'Internet (Primary)',
+  'WAN2': 'Internet (Backup)',
+  'LAN': 'Office Network',
+  'WIFI': 'Office Wi-Fi',
+  'GP': 'Remote Access (VPN)',
+  'VPN': 'Remote Access (VPN)',
+  'DNS': 'Internet Address Lookup',
+  'AD': 'Staff Login System',
+  'BACKUP': 'Data Backup',
+  'BACKUPS': 'Data Backup',
+  'FIREWALL': 'Network Security',
+  'PRINTER': 'Printers',
+  'EMAIL': 'Email System',
+  'O365': 'Microsoft 365',
+  'M365': 'Microsoft 365'
+};
+
+function friendlySystemName(raw) {
+  const key = String(raw || '').trim().toUpperCase();
+  return SYSTEM_FRIENDLY_NAMES[key] || raw;
+}
+
 function buildInfraSection(data) {
   if (!data || !data.values) { document.getElementById('infraStrip').innerHTML = '<p style="color:#898781;font-size:12px">Could not load infrastructure data.</p>'; return; }
 
@@ -617,7 +664,7 @@ function buildInfraSection(data) {
     const label = isFail ? 'Failed' : isWarn ? 'Warning' : isOk ? 'Passing' : val || 'Unknown';
     const labelColor = isFail ? '#e34948' : isWarn ? '#eda100' : '#1baf7a';
     return `<div class="infra-item">
-      <div class="infra-name">${sys}</div>
+      <div class="infra-name">${friendlySystemName(sys)}</div>
       <div class="infra-status"><span class="dot ${dotClass}"></span><span style="color:${labelColor}">${label}</span></div>
     </div>`;
   }).join('');
@@ -647,7 +694,7 @@ function buildInfraSection(data) {
     <div class="kpi"><div class="kpi-label">Days tracked</div><div class="kpi-value">${totalChecks}</div><div class="kpi-sub">total check days</div></div>
     <div class="kpi"><div class="kpi-label">Overall success rate</div><div class="kpi-value">${successRate}%</div><div class="kpi-sub ${successRate >= 95 ? 'ok' : successRate >= 85 ? 'warn' : 'danger'}">${successRate >= 95 ? 'on target' : 'needs attention'}</div></div>
     <div class="kpi"><div class="kpi-label">Total failures</div><div class="kpi-value">${failCount}</div><div class="kpi-sub ${failCount === 0 ? 'ok' : 'danger'}">across all systems</div></div>
-    <div class="kpi"><div class="kpi-label">Most issues</div><div class="kpi-value" style="font-size:14px;padding-top:4px">${worstSys ? worstSys[0].split(' ')[0] : '—'}</div><div class="kpi-sub">${worstSys ? worstSys[1] + ' failures' : ''}</div></div>
+    <div class="kpi"><div class="kpi-label">System with most failures</div><div class="kpi-value" style="font-size:14px;padding-top:4px">${worstSys && worstSys[1] > 0 ? friendlySystemName(worstSys[0]) : 'None'}</div><div class="kpi-sub">${worstSys && worstSys[1] > 0 ? worstSys[1] + ' failed check' + (worstSys[1] === 1 ? '' : 's') + ' recorded' : 'no failures recorded'}</div></div>
   `;
 
   // Reliability table
@@ -657,7 +704,7 @@ function buildInfraSection(data) {
     const pass  = dataRows.filter(r => String(r[idx+1]||'').trim() === '✅').length;
     const pct   = total ? Math.round((pass/total)*100) : 0;
     const barColor = pct >= 95 ? '#1baf7a' : pct >= 80 ? '#eda100' : '#e34948';
-    return `<tr><td>${s}</td><td class="rel-pct" style="color:${barColor}">${pct}%<span class="rel-bar-mini" style="width:${pct*0.6}px;background:${barColor}"></span></td><td style="color:#898781">${total - pass} failures</td></tr>`;
+    return `<tr><td>${friendlySystemName(s)}</td><td class="rel-pct" style="color:${barColor}">${pct}%<span class="rel-bar-mini" style="width:${pct*0.6}px;background:${barColor}"></span></td><td style="color:#898781">${total - pass} failures</td></tr>`;
   }).join('');
   document.getElementById('relTableWrap').innerHTML = `
     <table class="rel-table">
