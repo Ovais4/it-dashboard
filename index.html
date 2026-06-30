@@ -608,28 +608,29 @@ function ticketRow(t, showClosed) {
 }
 
 // ─── INFRA SECTION ────────────────────────────────────────────────────────────
-const SYSTEM_FRIENDLY_NAMES = {
-  'SVR & HOST-RELIANCE/KENSINGTON HEALTH': 'Main Servers (Reliance & Kensington)',
-  'CLOUD BACKUPS (NINJAONE)': 'Cloud Backups',
-  'ON-PREM BACKUPS (VEEAM)': 'Local Backups',
-  'ISP1 (VIRGIN)': 'Internet — Reliance (Primary)',
-  'ISP2 (ITS/FIBRETELECOM)': 'Internet — Reliance (Backup)',
-  'KENSINGTON ISP1 (VIRGIN)': 'Internet — Kensington (Primary)',
-  'KENSINGTON ISP2': 'Internet — Kensington (Backup)',
-  'OMADA LAN (RSH)': 'Office Network — Reliance',
-  'OMADA LAN (KENSINGTON)': 'Office Network — Kensington'
-};
+const SYSTEM_FRIENDLY_RULES = [
+  { test: /SVR.*HOST/i, name: 'Main Servers (Reliance & Kensington)' },
+  { test: /CLOUD\s*BACKUP/i, name: 'Cloud Backups' },
+  { test: /ON.?PREM\s*BACKUP/i, name: 'Local Backups' },
+  { test: /KENSINGTON\s*ISP\s*1/i, name: 'Internet — Kensington (Primary)' },
+  { test: /KENSINGTON\s*ISP\s*2/i, name: 'Internet — Kensington (Backup)' },
+  { test: /ISP\s*1/i, name: 'Internet — Reliance (Primary)' },
+  { test: /ISP\s*2/i, name: 'Internet — Reliance (Backup)' },
+  { test: /OMADA.*\(?RSH\)?/i, name: 'Office Network — Reliance' },
+  { test: /OMADA.*KENSINGTON/i, name: 'Office Network — Kensington' }
+];
 
 function friendlySystemName(raw) {
-  // Strip leading emoji/symbols and normalise whitespace, then match against the lookup table
-  const stripped = String(raw || '')
-    .replace(/^[^\w]+/u, '')       // remove leading emoji/symbols
-    .replace(/^-\s*/, '')           // remove leading dash (e.g. "🖧 - 🛜Omada LAN")
-    .replace(/[^\w\s()/&-]/gu, '')  // strip remaining emoji/symbols anywhere
+  const text = String(raw || '');
+  for (const rule of SYSTEM_FRIENDLY_RULES) {
+    if (rule.test.test(text)) return rule.name;
+  }
+  // No rule matched — fall back to stripping emoji/symbols so it's at least readable
+  return text
+    .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2190}-\u{21FF}\u{2B00}-\u{2BFF}\uFE0F\u200D]/gu, '')
+    .replace(/^[\s\-–—:.]+/, '')
     .replace(/\s+/g, ' ')
-    .trim();
-  const key = stripped.toUpperCase();
-  return SYSTEM_FRIENDLY_NAMES[key] || stripped || raw;
+    .trim() || text;
 }
 
 function buildInfraSection(data) {
