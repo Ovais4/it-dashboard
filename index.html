@@ -300,6 +300,8 @@ let allTickets = [];
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 async function init() {
   await msalInstance.initialize();
+  show('loadingScreen');
+  showLoading('Completing sign-in...');
   const resp = await msalInstance.handleRedirectPromise();
   if (resp) { accessToken = resp.accessToken; currentUser = resp.account; }
 
@@ -318,15 +320,14 @@ async function init() {
 
 document.getElementById('signInBtn').addEventListener('click', async () => {
   try {
-    const resp = await msalInstance.loginPopup({ scopes: SCOPES });
-    accessToken = resp.accessToken;
-    currentUser = resp.account;
-    showDashboard();
-    loadAllData();
+    showLoading('Redirecting to Microsoft sign-in...');
+    await msalInstance.loginRedirect({ scopes: SCOPES });
+    // Browser navigates away here; code after this line only runs if redirect is cancelled
   } catch(e) {
     const errEl = document.getElementById('authError');
     errEl.textContent = 'Sign-in failed: ' + e.message;
     errEl.style.display = 'block';
+    show('authScreen');
   }
 });
 
