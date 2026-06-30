@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reliance IT Operations Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
+<style>
+  :root {
+    --blue: #2a78d6;
+    --green: #1baf7a;
+    --amber: #eda100;
+    --red: #e34948;
+    --gray: #888780;
+    --surface: #f8f8f7;
+    --card: #ffffff;
+    --border: rgba(0,0,0,0.09);
+    --text: #0b0b0b;
+    --text-sec: #52514e;
+    --text-muted: #898781;
+    --radius: 8px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--surface); color: var(--text); font-size: 14px; }
+
+  /* Auth screen */
+  #authScreen { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; gap: 16px; }
+  #authScreen h1 { font-size: 22px; font-weight: 500; }
+  #authScreen p { color: var(--text-sec); font-size: 14px; }
+  #signInBtn { background: #0078d4; color: #fff; border: none; padding: 10px 28px; border-radius: var(--radius); font-size: 14px; cursor: pointer; font-weight: 500; }
+  #signInBtn:hover { background: #006cbf; }
+  #authError { color: var(--red); font-size: 13px; display: none; }
+
+  /* Loading */
+  #loadingScreen { display: none; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; gap: 12px; }
+  .spinner { width: 32px; height: 32px; border: 3px solid var(--border); border-top-color: var(--blue); border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #loadingMsg { color: var(--text-sec); font-size: 13px; }
+
+  /* Dashboard */
+  #dashboard { display: none; padding: 20px 24px 40px; max-width: 1400px; margin: 0 auto; }
+
+  /* Header */
+  .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; }
+  .header-left { display: flex; align-items: center; gap: 12px; }
+  .header-logo { width: 36px; height: 36px; background: var(--blue); border-radius: var(--radius); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 14px; }
+  .header h1 { font-size: 17px; font-weight: 500; }
+  .header-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+  .header-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .last-updated { font-size: 12px; color: var(--text-muted); }
+  #refreshBtn { background: transparent; border: 0.5px solid rgba(0,0,0,0.2); border-radius: var(--radius); padding: 6px 14px; font-size: 12px; cursor: pointer; color: var(--text-sec); }
+  #refreshBtn:hover { background: #f0f0ee; }
+  #userBadge { font-size: 12px; color: var(--text-muted); }
+
+  /* Section label */
+  .section-label { font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin: 20px 0 10px; }
+
+  /* KPI row */
+  .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 4px; }
+  .kpi { background: var(--card); border-radius: var(--radius); padding: 14px 16px; border: 0.5px solid var(--border); }
+  .kpi-label { font-size: 11px; color: var(--text-muted); margin-bottom: 6px; }
+  .kpi-value { font-size: 28px; font-weight: 500; line-height: 1; }
+  .kpi-sub { font-size: 11px; margin-top: 5px; color: var(--text-muted); }
+  .kpi-sub.ok { color: #1baf7a; }
+  .kpi-sub.warn { color: #eda100; }
+  .kpi-sub.danger { color: #e34948; }
+
+  /* Infra status strip */
+  .infra-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; margin-bottom: 4px; }
+  .infra-item { background: var(--card); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; }
+  .infra-name { font-size: 11px; color: var(--text-sec); }
+  .infra-status { font-size: 12px; font-weight: 500; display: flex; align-items: center; gap: 5px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .dot-ok { background: #1baf7a; }
+  .dot-fail { background: #e34948; }
+  .dot-warn { background: #eda100; }
+
+  /* Charts grid */
+  .charts-row { display: grid; grid-template-columns: 1.5fr 1fr; gap: 12px; margin-bottom: 12px; }
+  .charts-row2 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+  @media (max-width: 900px) { .charts-row, .charts-row2 { grid-template-columns: 1fr; } }
+
+  /* Cards */
+  .card { background: var(--card); border-radius: 12px; border: 0.5px solid var(--border); padding: 16px 18px; }
+  .card-title { font-size: 13px; font-weight: 500; margin-bottom: 12px; color: var(--text); }
+  .chart-wrap { position: relative; }
+
+  /* Legend */
+  .leg { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 8px; }
+  .leg span { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text-sec); }
+  .leg-sq { width: 9px; height: 9px; border-radius: 2px; flex-shrink: 0; }
+
+  /* Bar rows */
+  .bar-row { margin-bottom: 9px; }
+  .bar-row:last-child { margin-bottom: 0; }
+  .bar-label { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-sec); margin-bottom: 3px; }
+  .bar-label span:last-child { font-weight: 500; color: var(--text); }
+  .bar-track { height: 6px; background: var(--surface); border-radius: 4px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 4px; transition: width 0.6s ease; }
+
+  /* Ticket list */
+  .ticket-list { list-style: none; }
+  .ti-row { display: flex; align-items: flex-start; gap: 8px; padding: 8px 0; border-bottom: 0.5px solid var(--border); }
+  .ti-row:last-child { border-bottom: none; }
+  .badge { font-size: 10px; padding: 2px 8px; border-radius: 4px; font-weight: 500; flex-shrink: 0; white-space: nowrap; margin-top: 1px; }
+  .b-open { background: #e6f1fb; color: #185fa5; }
+  .b-prog { background: #faeeda; color: #854f0b; }
+  .b-done { background: #eaf3de; color: #3b6d11; }
+  .b-esc  { background: #fcebeb; color: #a32d2d; }
+  .b-p1   { background: #fcebeb; color: #a32d2d; }
+  .b-p2   { background: #faeeda; color: #854f0b; }
+  .b-p3   { background: #f1efe8; color: #5f5e5a; }
+  .ti-info { flex: 1; min-width: 0; }
+  .ti-title { font-size: 12px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ti-meta  { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+
+  /* Filters */
+  .filters { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; }
+  .filters label { font-size: 12px; color: var(--text-muted); }
+  .filters select { font-size: 12px; padding: 5px 10px; border: 0.5px solid rgba(0,0,0,0.18); border-radius: var(--radius); background: var(--card); color: var(--text); cursor: pointer; }
+
+  /* Infra reliability table */
+  .rel-table { width: 100%; font-size: 12px; border-collapse: collapse; }
+  .rel-table th { text-align: left; color: var(--text-muted); font-weight: 400; padding: 4px 0; border-bottom: 0.5px solid var(--border); }
+  .rel-table td { padding: 6px 0; border-bottom: 0.5px solid var(--border); color: var(--text-sec); }
+  .rel-table tr:last-child td { border-bottom: none; }
+  .rel-pct { font-weight: 500; }
+  .rel-bar-mini { display: inline-block; height: 4px; border-radius: 2px; vertical-align: middle; margin-left: 6px; }
+
+  /* Feedback stars */
+  .stars { color: #eda100; font-size: 16px; letter-spacing: 2px; }
+
+  /* Empty state */
+  .empty { color: var(--text-muted); font-size: 12px; padding: 16px 0; text-align: center; }
+
+  /* Footer */
+  .footer { font-size: 11px; color: var(--text-muted); text-align: center; margin-top: 24px; }
+</style>
+</head>
+<body>
+
+<!-- Auth screen -->
+<div id="authScreen">
+  <div class="header-logo" style="width:48px;height:48px;font-size:18px">IT</div>
+  <h1>Reliance IT Operations Dashboard</h1>
+  <p>Sign in with your Reliance Microsoft 365 account to continue</p>
+  <button id="signInBtn">Sign in with Microsoft</button>
+  <p id="authError"></p>
+</div>
+
+<!-- Loading -->
+<div id="loadingScreen">
+  <div class="spinner"></div>
+  <p id="loadingMsg">Connecting to Microsoft Graph...</p>
+</div>
+
+<!-- Dashboard -->
+<div id="dashboard">
+  <div class="header">
+    <div class="header-left">
+      <div class="header-logo">IT</div>
+      <div>
+        <h1>Reliance IT Operations Dashboard</h1>
+        <div class="header-sub">IT Help Desk &amp; Infrastructure — Reliance Social Housing CIC</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <span id="userBadge"></span>
+      <span class="last-updated" id="lastUpdated"></span>
+      <button id="refreshBtn">Refresh data</button>
+    </div>
+  </div>
+
+  <!-- INFRASTRUCTURE SECTION -->
+  <div class="section-label">Infrastructure status — today</div>
+  <div class="infra-strip" id="infraStrip"></div>
+
+  <div class="kpi-row" style="margin-top:10px" id="infraKpiRow"></div>
+
+  <div class="charts-row" style="margin-top:12px">
+    <div class="card">
+      <div class="card-title">System reliability — all time (%)</div>
+      <div class="rel-table-wrap" id="relTableWrap"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Daily check history — last 30 days</div>
+      <div class="chart-wrap" style="height:200px">
+        <canvas id="infraHistChart" role="img" aria-label="Infrastructure check history last 30 days">System check pass/fail/warning history.</canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- HELPDESK SECTION -->
+  <div class="section-label">IT helpdesk tickets</div>
+
+  <div class="kpi-row" id="hdKpiRow"></div>
+
+  <div class="filters" id="hdFilters">
+    <label>Filter:</label>
+    <select id="filtStatus"><option value="all">All statuses</option></select>
+    <select id="filtPriority"><option value="all">All priorities</option></select>
+    <select id="filtCategory"><option value="all">All categories</option></select>
+  </div>
+
+  <div class="charts-row">
+    <div class="card">
+      <div class="card-title">Tickets over time</div>
+      <div class="leg">
+        <span><span class="leg-sq" style="background:#2a78d6"></span>New tickets</span>
+        <span><span class="leg-sq" style="background:#1baf7a"></span>Closed</span>
+      </div>
+      <div class="chart-wrap" style="height:200px">
+        <canvas id="hdTrendChart" role="img" aria-label="Helpdesk ticket trend over time">Weekly ticket volume trend.</canvas>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">By category</div>
+      <div class="chart-wrap" style="height:200px">
+        <canvas id="hdCatChart" role="img" aria-label="Tickets by category donut chart">Ticket category breakdown.</canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="charts-row2">
+    <div class="card">
+      <div class="card-title">Status breakdown</div>
+      <div id="hdStatusBars"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Priority breakdown</div>
+      <div id="hdPriBars"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Avg feedback score</div>
+      <div id="hdFeedback" style="padding-top:8px"></div>
+    </div>
+  </div>
+
+  <div class="charts-row">
+    <div class="card">
+      <div class="card-title">Open &amp; in-progress tickets</div>
+      <ul class="ticket-list" id="openTickets"></ul>
+    </div>
+    <div class="card">
+      <div class="card-title">Recent closures</div>
+      <ul class="ticket-list" id="recentClosed"></ul>
+    </div>
+  </div>
+
+  <div class="footer" id="footerTxt"></div>
+</div>
+
+<script>
+// ─── CONFIG ───────────────────────────────────────────────────────────────────
+const TENANT_ID   = '34f7d0d7-b53f-4d5b-aaed-c1fa652b0414';
+const CLIENT_ID   = '72960f53-ba1f-4633-a952-7a9416e04347';
+const SCOPES      = ['Sites.Read.All','Files.Read.All','User.Read'];
+
+// IT Task Tracker — SharePoint IT Team site
+const TRACKER_SITE_HOSTNAME = 'reliancesh.sharepoint.com';
+const TRACKER_SITE_PATH     = '/sites/itteam';
+const TRACKER_FILE_NAME     = 'IT Task Tracker.xlsx';
+
+// IT Help Desk — personal OneDrive site
+const LIST_SITE_HOSTNAME    = 'reliancesh-my.sharepoint.com';
+const LIST_SITE_PATH        = '/personal/ovais_amjad_reliancehousing_co_uk';
+const LIST_NAME             = 'IT Help Desk';
+
+// ─── MSAL ─────────────────────────────────────────────────────────────────────
+const msalConfig = {
+  auth: {
+    clientId: CLIENT_ID,
+    authority: `https://login.microsoftonline.com/${TENANT_ID}`,
+    redirectUri: window.location.href.split('?')[0]
+  },
+  cache: { cacheLocation: 'sessionStorage' }
+};
+const msalInstance = new msal.PublicClientApplication(msalConfig);
+let accessToken = null;
+let currentUser = null;
+
+// Chart instances (so we can destroy on refresh)
+let infraHistChartInst = null;
+let hdTrendChartInst   = null;
+let hdCatChartInst     = null;
+
+// Raw data cache
+let allTickets = [];
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+async function init() {
+  await msalInstance.initialize();
+  const resp = await msalInstance.handleRedirectPromise();
+  if (resp) { accessToken = resp.accessToken; currentUser = resp.account; }
+
+  const accounts = msalInstance.getAllAccounts();
+  if (accounts.length > 0 && !accessToken) {
+    try {
+      const silent = await msalInstance.acquireTokenSilent({ scopes: SCOPES, account: accounts[0] });
+      accessToken = silent.accessToken;
+      currentUser = accounts[0];
+    } catch(e) { /* will need interactive */ }
+  }
+
+  if (accessToken) { showDashboard(); loadAllData(); }
+  else { show('authScreen'); }
+}
+
+document.getElementById('signInBtn').addEventListener('click', async () => {
+  try {
+    const resp = await msalInstance.loginPopup({ scopes: SCOPES });
+    accessToken = resp.accessToken;
+    currentUser = resp.account;
+    showDashboard();
+    loadAllData();
+  } catch(e) {
+    const errEl = document.getElementById('authError');
+    errEl.textContent = 'Sign-in failed: ' + e.message;
+    errEl.style.display = 'block';
+  }
+});
+
+document.getElementById('refreshBtn').addEventListener('click', () => loadAllData());
+
+// ─── UI HELPERS ───────────────────────────────────────────────────────────────
+function show(id) {
+  ['authScreen','loadingScreen','dashboard'].forEach(s => {
+    document.getElementById(s).style.display = s === id ? (id === 'loadingScreen' || id === 'authScreen' ? 'flex' : 'block') : 'none';
+  });
+}
+
+function showDashboard() { show('dashboard'); }
+function showLoading(msg) {
+  document.getElementById('loadingMsg').textContent = msg || 'Loading...';
+  document.getElementById('loadingScreen').style.display = 'flex';
+}
+
+function loading(msg) { document.getElementById('loadingMsg').textContent = msg; }
+
+// ─── GRAPH HELPERS ────────────────────────────────────────────────────────────
+async function graphGet(url) {
+  const r = await fetch(url, { headers: { Authorization: 'Bearer ' + accessToken } });
+  if (!r.ok) throw new Error(`Graph ${r.status}: ${url}`);
+  return r.json();
+}
+
+async function getSiteId(hostname, path) {
+  const d = await graphGet(`https://graph.microsoft.com/v1.0/sites/${hostname}:${path}`);
+  return d.id;
+}
+
+async function getListId(siteId, listName) {
+  const d = await graphGet(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists?$filter=displayName eq '${encodeURIComponent(listName)}'&$select=id,displayName`);
+  if (!d.value || d.value.length === 0) throw new Error(`List "${listName}" not found`);
+  return d.value[0].id;
+}
+
+async function getAllListItems(siteId, listId) {
+  let items = [], url = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=999`;
+  while (url) {
+    const d = await graphGet(url);
+    items = items.concat(d.value || []);
+    url = d['@odata.nextLink'] || null;
+  }
+  return items;
+}
+
+async function getDriveItem(siteId, fileName) {
+  const d = await graphGet(`https://graph.microsoft.com/v1.0/sites/${siteId}/drive/root/children?$filter=name eq '${fileName}'&$select=id,name`);
+  if (!d.value || d.value.length === 0) throw new Error(`File "${fileName}" not found`);
+  return d.value[0].id;
+}
+
+async function getWorksheetRange(siteId, itemId, sheet, range) {
+  const driveId = await graphGet(`https://graph.microsoft.com/v1.0/sites/${siteId}/drive`).then(d => d.id);
+  const url = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/workbook/worksheets/${encodeURIComponent(sheet)}/usedRange`;
+  return graphGet(url);
+}
+
+// ─── LOAD ALL DATA ────────────────────────────────────────────────────────────
+async function loadAllData() {
+  show('loadingScreen');
+  try {
+    if (currentUser) {
+      document.getElementById('userBadge').textContent = currentUser.name || currentUser.username;
+    }
+
+    loading('Loading helpdesk tickets...');
+    const listSiteId = await getSiteId(LIST_SITE_HOSTNAME, LIST_SITE_PATH);
+    const listId = await getListId(listSiteId, LIST_NAME);
+    const rawItems = await getAllListItems(listSiteId, listId);
+    allTickets = rawItems.map(i => i.fields);
+
+    loading('Loading infrastructure data...');
+    const trackerSiteId = await getSiteId(TRACKER_SITE_HOSTNAME, TRACKER_SITE_PATH);
+    const fileId = await getDriveItem(trackerSiteId, TRACKER_FILE_NAME);
+    const infraData = await getWorksheetRange(trackerSiteId, fileId, 'IT Daily Checks', null);
+
+    loading('Building dashboard...');
+    buildHelpdeskSection(allTickets);
+    buildInfraSection(infraData);
+
+    document.getElementById('lastUpdated').textContent = 'Updated ' + new Date().toLocaleTimeString('en-GB', {hour:'2-digit',minute:'2-digit'});
+    document.getElementById('footerTxt').textContent = `Reliance Social Housing CIC · IT Operations Dashboard · Data from Microsoft Lists & SharePoint · ${new Date().toLocaleDateString('en-GB', {weekday:'long', day:'numeric', month:'long', year:'numeric'})}`;
+
+    show('dashboard');
+  } catch(e) {
+    alert('Error loading data: ' + e.message + '\n\nCheck the browser console for details.');
+    console.error(e);
+    show('dashboard');
+  }
+}
+
+// ─── HELPDESK SECTION ─────────────────────────────────────────────────────────
+function buildHelpdeskSection(tickets) {
+  populateFilters(tickets);
+  renderHelpdesk(tickets);
+
+  document.getElementById('filtStatus').addEventListener('change', () => renderHelpdesk(filterTickets()));
+  document.getElementById('filtPriority').addEventListener('change', () => renderHelpdesk(filterTickets()));
+  document.getElementById('filtCategory').addEventListener('change', () => renderHelpdesk(filterTickets()));
+}
+
+function populateFilters(tickets) {
+  const statuses   = [...new Set(tickets.map(t => t.Status).filter(Boolean))].sort();
+  const priorities = [...new Set(tickets.map(t => t.Priority).filter(Boolean))].sort();
+  const categories = [...new Set(tickets.map(t => t.Category).filter(Boolean))].sort();
+
+  fillSelect('filtStatus',   statuses);
+  fillSelect('filtPriority', priorities);
+  fillSelect('filtCategory', categories);
+}
+
+function fillSelect(id, values) {
+  const sel = document.getElementById(id);
+  const first = sel.options[0];
+  sel.innerHTML = '';
+  sel.appendChild(first);
+  values.forEach(v => { const o = document.createElement('option'); o.value = o.textContent = v; sel.appendChild(o); });
+}
+
+function filterTickets() {
+  const s = document.getElementById('filtStatus').value;
+  const p = document.getElementById('filtPriority').value;
+  const c = document.getElementById('filtCategory').value;
+  return allTickets.filter(t =>
+    (s === 'all' || t.Status === s) &&
+    (p === 'all' || t.Priority === p) &&
+    (c === 'all' || t.Category === c)
+  );
+}
+
+function renderHelpdesk(tickets) {
+  const total    = tickets.length;
+  const open     = tickets.filter(t => t.Status && !['Closed','Resolved','Completed','Done'].includes(t.Status)).length;
+  const closed   = tickets.filter(t => t.Status && ['Closed','Resolved','Completed','Done'].includes(t.Status)).length;
+  const scores   = tickets.map(t => parseFloat(t.FeedbackScore || t['Feedback Score'])).filter(n => !isNaN(n) && n > 0);
+  const avgScore = scores.length ? (scores.reduce((a,b) => a+b, 0) / scores.length).toFixed(1) : 'N/A';
+  const compRate = total ? Math.round((closed / total) * 100) : 0;
+
+  // KPIs
+  document.getElementById('hdKpiRow').innerHTML = `
+    <div class="kpi"><div class="kpi-label">Total tickets</div><div class="kpi-value">${total}</div><div class="kpi-sub">all time</div></div>
+    <div class="kpi"><div class="kpi-label">Open / active</div><div class="kpi-value">${open}</div><div class="kpi-sub ${open > 10 ? 'warn' : 'ok'}">${open > 10 ? 'needs attention' : 'under control'}</div></div>
+    <div class="kpi"><div class="kpi-label">Closed</div><div class="kpi-value">${closed}</div><div class="kpi-sub ok">${compRate}% closure rate</div></div>
+    <div class="kpi"><div class="kpi-label">Avg feedback</div><div class="kpi-value">${avgScore}</div><div class="kpi-sub">${scores.length} responses</div></div>
+  `;
+
+  // Trend chart (by week)
+  const weekMap = {};
+  const closedWeekMap = {};
+  tickets.forEach(t => {
+    const d = t.Created || t.created;
+    if (!d) return;
+    const dt = new Date(d);
+    const wk = getWeekLabel(dt);
+    weekMap[wk] = (weekMap[wk] || 0) + 1;
+    if (t.Status && ['Closed','Resolved','Completed','Done'].includes(t.Status)) {
+      closedWeekMap[wk] = (closedWeekMap[wk] || 0) + 1;
+    }
+  });
+  const weeks = Object.keys(weekMap).sort();
+  const newCounts    = weeks.map(w => weekMap[w]);
+  const closedCounts = weeks.map(w => closedWeekMap[w] || 0);
+
+  if (hdTrendChartInst) hdTrendChartInst.destroy();
+  hdTrendChartInst = new Chart(document.getElementById('hdTrendChart'), {
+    type: 'line',
+    data: {
+      labels: weeks,
+      datasets: [
+        { label:'New', data: newCounts, borderColor:'#2a78d6', backgroundColor:'rgba(42,120,214,0.08)', borderWidth:2, tension:0.35, fill:true, pointRadius:3, pointBackgroundColor:'#2a78d6' },
+        { label:'Closed', data: closedCounts, borderColor:'#1baf7a', backgroundColor:'rgba(27,175,122,0.08)', borderWidth:2, tension:0.35, fill:true, pointRadius:3, pointBackgroundColor:'#1baf7a', borderDash:[4,3] }
+      ]
+    },
+    options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ x:{grid:{display:false}, ticks:{color:'#898781',font:{size:10},maxRotation:40,maxTicksLimit:10}}, y:{grid:{color:'#e1e0d9'}, ticks:{color:'#898781',font:{size:11}}, beginAtZero:true} } }
+  });
+
+  // Category donut
+  const catMap = {};
+  tickets.forEach(t => { const c = t.Category || 'Uncategorised'; catMap[c] = (catMap[c]||0)+1; });
+  const catLabels = Object.keys(catMap).sort((a,b) => catMap[b]-catMap[a]);
+  const catColors = ['#2a78d6','#1baf7a','#eda100','#4a3aa7','#e34948','#eb6834','#e87ba4','#888780'];
+
+  if (hdCatChartInst) hdCatChartInst.destroy();
+  hdCatChartInst = new Chart(document.getElementById('hdCatChart'), {
+    type: 'doughnut',
+    data: {
+      labels: catLabels,
+      datasets: [{ data: catLabels.map(l => catMap[l]), backgroundColor: catColors.slice(0, catLabels.length), borderWidth:0, hoverOffset:4 }]
+    },
+    options: { responsive:true, maintainAspectRatio:false, cutout:'60%', plugins:{ legend:{ position:'bottom', labels:{ color:'#52514e', font:{size:10}, padding:8, boxWidth:9, boxHeight:9 } }, tooltip:{ callbacks:{ label: c => ` ${c.label}: ${c.parsed}` } } } }
+  });
+
+  // Status bars
+  const statusMap = {};
+  tickets.forEach(t => { const s = t.Status || 'Unknown'; statusMap[s] = (statusMap[s]||0)+1; });
+  const statusKeys = Object.keys(statusMap).sort((a,b) => statusMap[b]-statusMap[a]);
+  const maxS = Math.max(...Object.values(statusMap));
+  document.getElementById('hdStatusBars').innerHTML = statusKeys.map(s => `
+    <div class="bar-row">
+      <div class="bar-label"><span>${s}</span><span>${statusMap[s]}</span></div>
+      <div class="bar-track"><div class="bar-fill" style="width:${Math.round((statusMap[s]/maxS)*100)}%;background:#2a78d6"></div></div>
+    </div>`).join('');
+
+  // Priority bars
+  const priMap = {};
+  tickets.forEach(t => { const p = t.Priority || 'Unknown'; priMap[p] = (priMap[p]||0)+1; });
+  const priColors = { 'Critical':'#e34948','High':'#eda100','Medium':'#2a78d6','Low':'#1baf7a' };
+  const priKeys = Object.keys(priMap).sort((a,b) => priMap[b]-priMap[a]);
+  const maxP = Math.max(...Object.values(priMap));
+  document.getElementById('hdPriBars').innerHTML = priKeys.map(p => `
+    <div class="bar-row">
+      <div class="bar-label"><span>${p}</span><span>${priMap[p]}</span></div>
+      <div class="bar-track"><div class="bar-fill" style="width:${Math.round((priMap[p]/maxP)*100)}%;background:${priColors[p]||'#2a78d6'}"></div></div>
+    </div>`).join('');
+
+  // Feedback
+  const scoreNum = parseFloat(avgScore);
+  const stars = isNaN(scoreNum) ? '' : '★'.repeat(Math.round(scoreNum)) + '☆'.repeat(5 - Math.round(scoreNum));
+  document.getElementById('hdFeedback').innerHTML = `
+    <div style="font-size:32px;font-weight:500;margin-bottom:6px">${avgScore}<span style="font-size:14px;color:#898781;font-weight:400"> / 5</span></div>
+    <div class="stars">${stars}</div>
+    <div style="font-size:12px;color:#898781;margin-top:8px">${scores.length} rated tickets</div>
+    <div style="margin-top:16px">
+      ${[5,4,3,2,1].map(n => {
+        const cnt = scores.filter(s => Math.round(s) === n).length;
+        const pct = scores.length ? Math.round((cnt/scores.length)*100) : 0;
+        return `<div class="bar-row"><div class="bar-label"><span>${'★'.repeat(n)}</span><span>${cnt}</span></div><div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:#eda100"></div></div></div>`;
+      }).join('')}
+    </div>`;
+
+  // Open tickets
+  const openTickets = tickets.filter(t => t.Status && !['Closed','Resolved','Completed','Done'].includes(t.Status))
+    .sort((a,b) => new Date(b.Created||0) - new Date(a.Created||0)).slice(0,10);
+  document.getElementById('openTickets').innerHTML = openTickets.length
+    ? openTickets.map(t => ticketRow(t)).join('')
+    : '<li class="empty">No open tickets</li>';
+
+  // Recent closed
+  const recentClosed = tickets.filter(t => t.Status && ['Closed','Resolved','Completed','Done'].includes(t.Status))
+    .sort((a,b) => new Date(b.Modified||b.ClosureTimestamp||0) - new Date(a.Modified||a.ClosureTimestamp||0)).slice(0,8);
+  document.getElementById('recentClosed').innerHTML = recentClosed.length
+    ? recentClosed.map(t => ticketRow(t, true)).join('')
+    : '<li class="empty">No closed tickets yet</li>';
+}
+
+function ticketRow(t, showClosed) {
+  const statusClass = { 'Open':'b-open','In Progress':'b-prog','In progress':'b-prog','Closed':'b-done','Resolved':'b-done','Completed':'b-done','Escalated':'b-esc' };
+  const priClass = { 'Critical':'b-p1','High':'b-p2','Medium':'b-p3','Low':'b-p3' };
+  const sc = statusClass[t.Status] || 'b-open';
+  const pc = priClass[t.Priority] || 'b-p3';
+  const title = t.Title || 'Untitled';
+  const assignee = t.AssignedTo ? (t.AssignedTo.LookupValue || t.AssignedTo) : 'Unassigned';
+  const created = t.Created ? new Date(t.Created).toLocaleDateString('en-GB',{day:'numeric',month:'short'}) : '';
+  return `<li class="ti-row">
+    <span class="badge ${sc}">${t.Status||'Open'}</span>
+    <span class="badge ${pc}" style="margin-left:2px">${t.Priority||'—'}</span>
+    <div class="ti-info">
+      <div class="ti-title">${title}</div>
+      <div class="ti-meta">${t.RequesterName||''} · ${assignee} · ${created}</div>
+    </div>
+  </li>`;
+}
+
+// ─── INFRA SECTION ────────────────────────────────────────────────────────────
+function buildInfraSection(data) {
+  if (!data || !data.values) { document.getElementById('infraStrip').innerHTML = '<p style="color:#898781;font-size:12px">Could not load infrastructure data.</p>'; return; }
+
+  const rows = data.values;
+  // Find the header row — look for "Date" in first column
+  let headerIdx = -1;
+  for (let i = 0; i < rows.length; i++) {
+    if (rows[i][0] && String(rows[i][0]).toLowerCase().includes('date')) { headerIdx = i; break; }
+  }
+  if (headerIdx === -1) { document.getElementById('infraStrip').innerHTML = '<p style="color:#898781;font-size:12px">Infrastructure data format not recognised.</p>'; return; }
+
+  const headers = rows[headerIdx].map(h => String(h||'').trim());
+  const dataRows = rows.slice(headerIdx + 1).filter(r => r[0] && String(r[0]).trim() !== '');
+
+  // Systems = columns 1 onwards (skip Date col)
+  const systems = headers.slice(1).filter(h => h && h !== 'Note' && h !== 'Notes');
+  const sysCount = systems.length;
+
+  // Latest row
+  const latest = dataRows[dataRows.length - 1];
+  const latestDate = latest ? String(latest[0]) : 'Unknown';
+
+  // Build today status strip
+  document.getElementById('infraStrip').innerHTML = systems.map((sys, i) => {
+    const val = latest ? String(latest[i+1]||'').trim() : '';
+    const isOk   = val === '✅' || val.toLowerCase() === 'ok' || val.toLowerCase() === 'pass';
+    const isFail = val === '❌' || val.toLowerCase() === 'fail' || val.toLowerCase() === 'failed';
+    const isWarn = val === '⚠️' || val.toLowerCase().includes('warn');
+    const dotClass = isFail ? 'dot-fail' : isWarn ? 'dot-warn' : 'dot-ok';
+    const label = isFail ? 'Failed' : isWarn ? 'Warning' : isOk ? 'Passing' : val || 'Unknown';
+    const labelColor = isFail ? '#e34948' : isWarn ? '#eda100' : '#1baf7a';
+    return `<div class="infra-item">
+      <div class="infra-name">${sys}</div>
+      <div class="infra-status"><span class="dot ${dotClass}"></span><span style="color:${labelColor}">${label}</span></div>
+    </div>`;
+  }).join('');
+
+  // KPIs
+  const totalChecks = dataRows.length;
+  let passCount = 0, failCount = 0, warnCount = 0;
+  dataRows.forEach(row => {
+    for (let i = 1; i <= sysCount; i++) {
+      const v = String(row[i]||'').trim();
+      if (v === '✅') passCount++;
+      else if (v === '❌') failCount++;
+      else if (v === '⚠️') warnCount++;
+    }
+  });
+  const totalChecksAll = passCount + failCount + warnCount;
+  const successRate = totalChecksAll ? Math.round((passCount / totalChecksAll) * 100) : 0;
+
+  // Find most problematic system
+  const failsBySystem = {};
+  systems.forEach((s, i) => {
+    failsBySystem[s] = dataRows.filter(r => String(r[i+1]||'').trim() === '❌').length;
+  });
+  const worstSys = Object.entries(failsBySystem).sort((a,b) => b[1]-a[1])[0];
+
+  document.getElementById('infraKpiRow').innerHTML = `
+    <div class="kpi"><div class="kpi-label">Days tracked</div><div class="kpi-value">${totalChecks}</div><div class="kpi-sub">total check days</div></div>
+    <div class="kpi"><div class="kpi-label">Overall success rate</div><div class="kpi-value">${successRate}%</div><div class="kpi-sub ${successRate >= 95 ? 'ok' : successRate >= 85 ? 'warn' : 'danger'}">${successRate >= 95 ? 'on target' : 'needs attention'}</div></div>
+    <div class="kpi"><div class="kpi-label">Total failures</div><div class="kpi-value">${failCount}</div><div class="kpi-sub ${failCount === 0 ? 'ok' : 'danger'}">across all systems</div></div>
+    <div class="kpi"><div class="kpi-label">Most issues</div><div class="kpi-value" style="font-size:14px;padding-top:4px">${worstSys ? worstSys[0].split(' ')[0] : '—'}</div><div class="kpi-sub">${worstSys ? worstSys[1] + ' failures' : ''}</div></div>
+  `;
+
+  // Reliability table
+  const relRows = systems.map(s => {
+    const idx = systems.indexOf(s);
+    const total = dataRows.filter(r => String(r[idx+1]||'').trim() !== '').length;
+    const pass  = dataRows.filter(r => String(r[idx+1]||'').trim() === '✅').length;
+    const pct   = total ? Math.round((pass/total)*100) : 0;
+    const barColor = pct >= 95 ? '#1baf7a' : pct >= 80 ? '#eda100' : '#e34948';
+    return `<tr><td>${s}</td><td class="rel-pct" style="color:${barColor}">${pct}%<span class="rel-bar-mini" style="width:${pct*0.6}px;background:${barColor}"></span></td><td style="color:#898781">${total - pass} failures</td></tr>`;
+  }).join('');
+  document.getElementById('relTableWrap').innerHTML = `
+    <table class="rel-table">
+      <thead><tr><th>System</th><th>Reliability</th><th>Issues</th></tr></thead>
+      <tbody>${relRows}</tbody>
+    </table>`;
+
+  // History chart — last 30 days
+  const last30 = dataRows.slice(-30);
+  const histLabels = last30.map(r => {
+    const d = r[0];
+    if (typeof d === 'number') {
+      const dt = new Date(Math.round((d - 25569) * 86400 * 1000));
+      return dt.toLocaleDateString('en-GB',{day:'numeric',month:'short'});
+    }
+    return String(d).split('T')[0];
+  });
+  const histPass = last30.map(r => { let p=0; for(let i=1;i<=sysCount;i++) if(String(r[i]||'').trim()==='✅') p++; return p; });
+  const histFail = last30.map(r => { let f=0; for(let i=1;i<=sysCount;i++) if(String(r[i]||'').trim()==='❌') f++; return f; });
+  const histWarn = last30.map(r => { let w=0; for(let i=1;i<=sysCount;i++) if(String(r[i]||'').trim()==='⚠️') w++; return w; });
+
+  if (infraHistChartInst) infraHistChartInst.destroy();
+  infraHistChartInst = new Chart(document.getElementById('infraHistChart'), {
+    type: 'bar',
+    data: {
+      labels: histLabels,
+      datasets: [
+        { label:'Pass', data:histPass, backgroundColor:'#1baf7a', borderRadius:2, borderSkipped:false },
+        { label:'Warn', data:histWarn, backgroundColor:'#eda100', borderRadius:2, borderSkipped:false },
+        { label:'Fail', data:histFail, backgroundColor:'#e34948', borderRadius:2, borderSkipped:false }
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ position:'bottom', labels:{ color:'#52514e', font:{size:10}, padding:8, boxWidth:9, boxHeight:9 } } },
+      scales:{
+        x:{ stacked:true, grid:{display:false}, ticks:{color:'#898781', font:{size:9}, maxRotation:45, maxTicksLimit:15} },
+        y:{ stacked:true, grid:{color:'#e1e0d9'}, ticks:{color:'#898781', font:{size:11}}, beginAtZero:true }
+      }
+    }
+  });
+}
+
+// ─── UTILS ────────────────────────────────────────────────────────────────────
+function getWeekLabel(date) {
+  const d = new Date(date);
+  d.setDate(d.getDate() - d.getDay() + 1);
+  return d.toLocaleDateString('en-GB',{day:'numeric',month:'short'});
+}
+
+// ─── START ────────────────────────────────────────────────────────────────────
+init();
+</script>
+</body>
+</html>
