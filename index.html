@@ -401,6 +401,10 @@ async function loadAllData() {
     const listId = await getListId(listSiteId, LIST_NAME);
     const rawItems = await getAllListItems(listSiteId, listId);
     allTickets = rawItems.map(i => i.fields);
+    if (allTickets.length > 0) {
+      console.log('TICKET FIELD NAMES:', Object.keys(allTickets[0]));
+      console.log('FIRST TICKET RAW:', allTickets[0]);
+    }
 
     loading('Loading infrastructure data...');
     const trackerSiteId = await getSiteId(TRACKER_SITE_HOSTNAME, TRACKER_SITE_PATH);
@@ -586,7 +590,7 @@ function ticketRow(t, showClosed) {
   const priClass = { 'Critical':'b-p1','High':'b-p2','Medium':'b-p3','Low':'b-p3' };
   const sc = statusClass[t.Status] || 'b-open';
   const pc = priClass[t.Priority] || 'b-p3';
-  const requester = t.RequesterName || t['Requester Name'] || 'Unknown requester';
+  const requester = t.RequesterName || t['Requester Name'] || t.Requester_x0020_Name || t.Requester || t.RequestorName || t['Requestor Name'] || 'Unknown requester';
   const category = t.Category || 'Uncategorised';
   const description = t.Description || t.description || t.Title || 'No description provided';
   const rawAssignee = t.AssignedTo ? (t.AssignedTo.LookupValue || t.AssignedTo) : '';
@@ -605,32 +609,27 @@ function ticketRow(t, showClosed) {
 
 // ─── INFRA SECTION ────────────────────────────────────────────────────────────
 const SYSTEM_FRIENDLY_NAMES = {
-  'SVR': 'File Server',
-  'SVR-RELIANCE': 'File Server',
-  'HOST': 'Main Server',
-  'ISP': 'Internet Connection',
-  'ISP1': 'Internet (Primary)',
-  'ISP2': 'Internet (Backup)',
-  'WAN1': 'Internet (Primary)',
-  'WAN2': 'Internet (Backup)',
-  'LAN': 'Office Network',
-  'WIFI': 'Office Wi-Fi',
-  'GP': 'Remote Access (VPN)',
-  'VPN': 'Remote Access (VPN)',
-  'DNS': 'Internet Address Lookup',
-  'AD': 'Staff Login System',
-  'BACKUP': 'Data Backup',
-  'BACKUPS': 'Data Backup',
-  'FIREWALL': 'Network Security',
-  'PRINTER': 'Printers',
-  'EMAIL': 'Email System',
-  'O365': 'Microsoft 365',
-  'M365': 'Microsoft 365'
+  'SVR & HOST-RELIANCE/KENSINGTON HEALTH': 'Main Servers (Reliance & Kensington)',
+  'CLOUD BACKUPS (NINJAONE)': 'Cloud Backups',
+  'ON-PREM BACKUPS (VEEAM)': 'Local Backups',
+  'ISP1 (VIRGIN)': 'Internet — Reliance (Primary)',
+  'ISP2 (ITS/FIBRETELECOM)': 'Internet — Reliance (Backup)',
+  'KENSINGTON ISP1 (VIRGIN)': 'Internet — Kensington (Primary)',
+  'KENSINGTON ISP2': 'Internet — Kensington (Backup)',
+  'OMADA LAN (RSH)': 'Office Network — Reliance',
+  'OMADA LAN (KENSINGTON)': 'Office Network — Kensington'
 };
 
 function friendlySystemName(raw) {
-  const key = String(raw || '').trim().toUpperCase();
-  return SYSTEM_FRIENDLY_NAMES[key] || raw;
+  // Strip leading emoji/symbols and normalise whitespace, then match against the lookup table
+  const stripped = String(raw || '')
+    .replace(/^[^\w]+/u, '')       // remove leading emoji/symbols
+    .replace(/^-\s*/, '')           // remove leading dash (e.g. "🖧 - 🛜Omada LAN")
+    .replace(/[^\w\s()/&-]/gu, '')  // strip remaining emoji/symbols anywhere
+    .replace(/\s+/g, ' ')
+    .trim();
+  const key = stripped.toUpperCase();
+  return SYSTEM_FRIENDLY_NAMES[key] || stripped || raw;
 }
 
 function buildInfraSection(data) {
