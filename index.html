@@ -401,10 +401,6 @@ async function loadAllData() {
     const listId = await getListId(listSiteId, LIST_NAME);
     const rawItems = await getAllListItems(listSiteId, listId);
     allTickets = rawItems.map(i => i.fields);
-    if (allTickets.length > 0) {
-      console.log('TICKET FIELD NAMES:', Object.keys(allTickets[0]));
-      console.log('FIRST TICKET RAW:', allTickets[0]);
-    }
 
     loading('Loading infrastructure data...');
     const trackerSiteId = await getSiteId(TRACKER_SITE_HOSTNAME, TRACKER_SITE_PATH);
@@ -590,11 +586,10 @@ function ticketRow(t, showClosed) {
   const priClass = { 'Critical':'b-p1','High':'b-p2','Medium':'b-p3','Low':'b-p3' };
   const sc = statusClass[t.Status] || 'b-open';
   const pc = priClass[t.Priority] || 'b-p3';
-  const requester = t.RequesterName || t['Requester Name'] || t.Requester_x0020_Name || t.Requester || t.RequestorName || t['Requestor Name'] || 'Unknown requester';
+  const requester = t.Name || t.Title || 'Unknown requester';
   const category = t.Category || 'Uncategorised';
   const description = t.Description || t.description || t.Title || 'No description provided';
-  const rawAssignee = t.AssignedTo ? (t.AssignedTo.LookupValue || t.AssignedTo) : '';
-  const assignee = rawAssignee && rawAssignee.trim() ? rawAssignee : 'Azar Alampanah';
+  const assignee = 'Azar Alampanah';
   const created = t.Created ? new Date(t.Created).toLocaleDateString('en-GB',{day:'numeric',month:'short'}) : '';
   return `<li class="ti-row">
     <span class="badge ${sc}">${t.Status||'Open'}</span>
