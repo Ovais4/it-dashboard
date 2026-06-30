@@ -480,19 +480,24 @@ function renderHelpdesk(tickets) {
   // Trend chart (by week)
   const weekMap = {};
   const closedWeekMap = {};
+  const weekStartDates = {};
   tickets.forEach(t => {
     const d = t.Created || t.created;
     if (!d) return;
     const dt = new Date(d);
-    const wk = getWeekLabel(dt);
+    if (isNaN(dt.getTime())) return;
+    const weekStart = getWeekStart(dt);
+    const wk = weekStart.getTime();
+    weekStartDates[wk] = weekStart;
     weekMap[wk] = (weekMap[wk] || 0) + 1;
     if (t.Status && ['Closed','Resolved','Completed','Done'].includes(t.Status)) {
       closedWeekMap[wk] = (closedWeekMap[wk] || 0) + 1;
     }
   });
-  const weeks = Object.keys(weekMap).sort();
-  const newCounts    = weeks.map(w => weekMap[w]);
-  const closedCounts = weeks.map(w => closedWeekMap[w] || 0);
+  const weekKeys = Object.keys(weekMap).map(Number).sort((a, b) => a - b);
+  const weeks = weekKeys.map(wk => formatWeekLabel(weekStartDates[wk]));
+  const newCounts    = weekKeys.map(wk => weekMap[wk]);
+  const closedCounts = weekKeys.map(wk => closedWeekMap[wk] || 0);
 
   if (hdTrendChartInst) hdTrendChartInst.destroy();
   hdTrendChartInst = new Chart(document.getElementById('hdTrendChart'), {
@@ -745,10 +750,15 @@ function buildInfraSection(data) {
 }
 
 // ─── UTILS ────────────────────────────────────────────────────────────────────
-function getWeekLabel(date) {
+function getWeekStart(date) {
   const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
   d.setDate(d.getDate() - d.getDay() + 1);
-  return d.toLocaleDateString('en-GB',{day:'numeric',month:'short'});
+  return d;
+}
+
+function formatWeekLabel(date) {
+  return date.toLocaleDateString('en-GB', {day:'numeric', month:'short'});
 }
 
 // ─── START ────────────────────────────────────────────────────────────────────
