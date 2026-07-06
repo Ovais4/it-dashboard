@@ -136,8 +136,20 @@
   .rel-pct { font-weight: 500; }
   .rel-bar-mini { display: inline-block; height: 4px; border-radius: 2px; vertical-align: middle; margin-left: 6px; }
 
-  /* Feedback stars */
-  .stars { color: #eda100; font-size: 16px; letter-spacing: 2px; }
+  /* Combined KPI summary */
+  .combined-kpi-wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+  .combined-kpi-group { background: var(--card); border-radius: 12px; border: 0.5px solid var(--border); padding: 14px 16px; }
+  .combined-kpi-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+  .combined-kpi-label .label-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .combined-kpi-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .ckpi { background: var(--surface); border-radius: var(--radius); padding: 10px 12px; }
+  .ckpi-label { font-size: 11px; color: var(--text-muted); margin-bottom: 4px; }
+  .ckpi-value { font-size: 22px; font-weight: 500; color: var(--text-primary); line-height: 1; }
+  .ckpi-sub { font-size: 10px; margin-top: 4px; color: var(--text-muted); }
+  .ckpi-sub.ok { color: #1baf7a; }
+  .ckpi-sub.warn { color: #eda100; }
+  .ckpi-sub.danger { color: #e34948; }
+  @media (max-width: 800px) { .combined-kpi-wrap { grid-template-columns: 1fr; } .combined-kpi-tiles { grid-template-columns: repeat(2,1fr); } }
 
   /* Empty state */
   .empty { color: var(--text-muted); font-size: 12px; padding: 16px 0; text-align: center; }
@@ -180,10 +192,38 @@
     </div>
   </div>
 
+  <!-- COMBINED KPI SUMMARY -->
+  <div class="combined-kpi-wrap">
+    <div class="combined-kpi-group">
+      <div class="combined-kpi-label">
+        <span class="label-dot" style="background:#2a78d6"></span>
+        <span style="color:#2a78d6">IT Helpdesk — Internal Staff</span>
+      </div>
+      <div class="combined-kpi-tiles" id="hdKpiSummary">
+        <div class="ckpi"><div class="ckpi-label">Total tickets</div><div class="ckpi-value">—</div></div>
+        <div class="ckpi"><div class="ckpi-label">Open / active</div><div class="ckpi-value">—</div></div>
+        <div class="ckpi"><div class="ckpi-label">Closed</div><div class="ckpi-value">—</div></div>
+        <div class="ckpi"><div class="ckpi-label">Closure rate</div><div class="ckpi-value">—</div></div>
+      </div>
+    </div>
+    <div class="combined-kpi-group">
+      <div class="combined-kpi-label">
+        <span class="label-dot" style="background:#4a3aa7"></span>
+        <span style="color:#4a3aa7">CRM/ERP Helpdesk — Managing Agents</span>
+      </div>
+      <div class="combined-kpi-tiles" id="crmKpiSummary">
+        <div class="ckpi"><div class="ckpi-label">Total tickets</div><div class="ckpi-value">—</div></div>
+        <div class="ckpi"><div class="ckpi-label">Open / active</div><div class="ckpi-value">—</div></div>
+        <div class="ckpi"><div class="ckpi-label">Completed</div><div class="ckpi-value">—</div></div>
+        <div class="ckpi"><div class="ckpi-label">This month</div><div class="ckpi-value">—</div></div>
+      </div>
+    </div>
+  </div>
+
   <!-- HELPDESK SECTION -->
   <div class="section-label">IT helpdesk tickets</div>
 
-  <div class="kpi-row" id="hdKpiRow"></div>
+  <div class="kpi-row" id="hdKpiRow" style="display:none"></div>
 
   <div class="filters" id="hdFilters">
     <label>Filter:</label>
@@ -241,7 +281,7 @@
   <!-- CRM/ERP SECTION -->
   <div class="section-label">CRM / ERP helpdesk — Managing Agent Portal</div>
 
-  <div class="kpi-row" id="crmKpiRow"></div>
+  <div class="kpi-row" id="crmKpiRow" style="display:none"></div>
 
   <div class="charts-row" style="margin-top:12px">
     <div class="card">
@@ -462,6 +502,7 @@ async function loadAllData() {
     helpdeskError = e;
     console.error('Helpdesk load failed:', e);
     document.getElementById('hdKpiRow').innerHTML = `<div class="kpi" style="grid-column:1/-1"><div class="kpi-label">Helpdesk data unavailable</div><div class="kpi-sub danger">You may not have access to this data source. Contact IT if this persists.</div></div>`;
+    document.getElementById('hdKpiSummary').innerHTML = `<div class="ckpi" style="grid-column:1/-1"><div class="ckpi-label" style="color:#e34948">Helpdesk data unavailable</div><div class="ckpi-sub danger">Access error — contact IT</div></div>`;
   }
 
   loading('Loading CRM/ERP & infrastructure data...');
@@ -475,7 +516,8 @@ async function loadAllData() {
       buildCRMSection(crmData);
     } catch(e) {
       console.error('CRM load failed:', e);
-      document.getElementById('crmKpiRow').innerHTML = `<div class="kpi" style="grid-column:1/-1"><div class="kpi-label">CRM/ERP data unavailable</div><div class="kpi-sub danger">Could not load CRM ticket data. Contact IT if this persists.</div></div>`;
+      document.getElementById('crmKpiRow').innerHTML = `<div class="kpi" style="grid-column:1/-1"><div class="kpi-label">CRM/ERP data unavailable</div><div class="kpi-sub danger">Could not load CRM ticket data.</div></div>`;
+      document.getElementById('crmKpiSummary').innerHTML = `<div class="ckpi" style="grid-column:1/-1"><div class="ckpi-label" style="color:#e34948">CRM data unavailable</div><div class="ckpi-sub danger">Access error — contact IT</div></div>`;
     }
 
     // Infra sheet
@@ -552,12 +594,18 @@ function renderHelpdesk(tickets) {
   const avgScore = scores.length ? (scores.reduce((a,b) => a+b, 0) / scores.length).toFixed(1) : 'N/A';
   const compRate = total ? Math.round((closed / total) * 100) : 0;
 
-  // KPIs
+  // KPIs — hidden detailed row + visible combined summary
   document.getElementById('hdKpiRow').innerHTML = `
     <div class="kpi"><div class="kpi-label">Total tickets</div><div class="kpi-value">${total}</div><div class="kpi-sub">all time</div></div>
     <div class="kpi"><div class="kpi-label">Open / active</div><div class="kpi-value">${open}</div><div class="kpi-sub ${open > 10 ? 'warn' : 'ok'}">${open > 10 ? 'needs attention' : 'under control'}</div></div>
     <div class="kpi"><div class="kpi-label">Closed</div><div class="kpi-value">${closed}</div><div class="kpi-sub ok">${compRate}% closure rate</div></div>
     <div class="kpi"><div class="kpi-label">Avg feedback</div><div class="kpi-value">${avgScore}</div><div class="kpi-sub">${scores.length} responses</div></div>
+  `;
+  document.getElementById('hdKpiSummary').innerHTML = `
+    <div class="ckpi"><div class="ckpi-label">Total tickets</div><div class="ckpi-value">${total}</div><div class="ckpi-sub">all time</div></div>
+    <div class="ckpi"><div class="ckpi-label">Open / active</div><div class="ckpi-value">${open}</div><div class="ckpi-sub ${open > 10 ? 'warn' : 'ok'}">${open > 10 ? 'needs attention' : 'under control'}</div></div>
+    <div class="ckpi"><div class="ckpi-label">Closed</div><div class="ckpi-value">${closed}</div><div class="ckpi-sub ok">${compRate}% closure rate</div></div>
+    <div class="ckpi"><div class="ckpi-label">Closure rate</div><div class="ckpi-value">${compRate}<span style="font-size:13px;font-weight:400;color:var(--text-muted)">%</span></div><div class="ckpi-sub ok">target: 95%</div></div>
   `;
 
   // Trend chart (by week)
@@ -779,6 +827,12 @@ function buildCRMSection(data) {
     <div class="kpi"><div class="kpi-label">Open / active</div><div class="kpi-value">${open}</div><div class="kpi-sub ${open > 5 ? 'warn' : 'ok'}">${escalated > 0 ? escalated + ' escalated' : 'none escalated'}</div></div>
     <div class="kpi"><div class="kpi-label">Completed</div><div class="kpi-value">${completed}</div><div class="kpi-sub ok">${compRate}% completion rate</div></div>
     <div class="kpi"><div class="kpi-label">This month</div><div class="kpi-value">${thisMonth}</div><div class="kpi-sub">tickets logged</div></div>
+  `;
+  document.getElementById('crmKpiSummary').innerHTML = `
+    <div class="ckpi"><div class="ckpi-label">Total MA tickets</div><div class="ckpi-value">${total}</div><div class="ckpi-sub">all time</div></div>
+    <div class="ckpi"><div class="ckpi-label">Open / active</div><div class="ckpi-value">${open}</div><div class="ckpi-sub ${open > 5 ? 'warn' : 'ok'}">${escalated > 0 ? escalated + ' escalated' : 'none escalated'}</div></div>
+    <div class="ckpi"><div class="ckpi-label">Completed</div><div class="ckpi-value">${completed}</div><div class="ckpi-sub ok">${compRate}% completion rate</div></div>
+    <div class="ckpi"><div class="ckpi-label">This month</div><div class="ckpi-value">${thisMonth}</div><div class="ckpi-sub">tickets logged</div></div>
   `;
 
   // Trend chart by week
