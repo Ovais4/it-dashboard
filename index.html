@@ -755,7 +755,7 @@ function buildCRMSection(data) {
     if (!ticketNo || !ticketNo.match(/^HT\d+$/i)) continue;
     tickets.push({
       ticketNo,
-      date:     row[colDate]     ? new Date(row[colDate])     : null,
+      date:     row[colDate]     ? parseExcelDate(row[colDate])  : null,
       issue:    String(row[colIssue]    || '').trim(),
       ma:       String(row[colMA]       || '').trim(),
       priority: String(row[colPriority] || '').trim(),
@@ -1033,6 +1033,20 @@ function buildInfraSection(data) {
 }
 
 // ─── UTILS ────────────────────────────────────────────────────────────────────
+function parseExcelDate(val) {
+  if (!val) return null;
+  // If it's a number, treat as Excel serial date (days since 1 Jan 1900)
+  const num = typeof val === 'number' ? val : parseFloat(val);
+  if (!isNaN(num) && num > 1000) {
+    // Excel epoch: 1 Jan 1900 = serial 1, but Excel incorrectly treats 1900 as a leap year
+    // so we subtract 25569 days to convert to Unix epoch (1 Jan 1970)
+    const ms = (num - 25569) * 86400 * 1000;
+    return new Date(ms);
+  }
+  // Otherwise try parsing as a date string
+  const d = new Date(val);
+  return isNaN(d.getTime()) ? null : d;
+}
 function getWeekStart(date) {
   const d = new Date(date);
   d.setHours(0, 0, 0, 0);
