@@ -218,6 +218,18 @@
         <div class="ckpi"><div class="ckpi-label">This month</div><div class="ckpi-value">—</div></div>
       </div>
     </div>
+    <div class="combined-kpi-group">
+      <div class="combined-kpi-label">
+        <span class="label-dot" style="background:#0f9b8e"></span>
+        <span style="color:#0f9b8e">MAP/ERP Task Log — Internal (Leo)</span>
+      </div>
+      <div class="combined-kpi-tiles" id="taskKpiSummary">
+        <div class="ckpi"><div class="ckpi-label">Total tasks</div><div class="ckpi-value">—</div></div>
+        <div class="ckpi"><div class="ckpi-label">Completed</div><div class="ckpi-value">—</div></div>
+        <div class="ckpi"><div class="ckpi-label">This month</div><div class="ckpi-value">—</div></div>
+        <div class="ckpi"><div class="ckpi-label">Flagged</div><div class="ckpi-value">—</div></div>
+      </div>
+    </div>
   </div>
 
   <!-- HELPDESK SECTION -->
@@ -558,6 +570,7 @@ async function loadAllData() {
     } catch(e) {
       console.error('Task log load failed:', e);
       document.getElementById('recentTasks').innerHTML = '<li class="empty">Task log unavailable — you may not have access to this data source. Contact IT if this persists.</li>';
+      document.getElementById('taskKpiSummary').innerHTML = `<div class="ckpi" style="grid-column:1/-1"><div class="ckpi-label" style="color:#e34948">Task log unavailable</div><div class="ckpi-sub danger">Access error — contact IT</div></div>`;
     }
 
     // Infra sheet
@@ -1083,6 +1096,12 @@ function buildTaskLogSection(data) {
     <div class="kpi"><div class="kpi-label">Completed</div><div class="kpi-value">${completed}</div><div class="kpi-sub ok">${compRate}% completion rate</div></div>
     <div class="kpi"><div class="kpi-label">This month</div><div class="kpi-value">${thisMonth}</div><div class="kpi-sub">tasks logged</div></div>
     <div class="kpi"><div class="kpi-label">Flagged</div><div class="kpi-value">${issues}</div><div class="kpi-sub ${issues > 0 ? 'warn' : 'ok'}">warning / not completed</div></div>
+  `;
+  document.getElementById('taskKpiSummary').innerHTML = `
+    <div class="ckpi"><div class="ckpi-label">Total tasks</div><div class="ckpi-value">${total}</div><div class="ckpi-sub">all time</div></div>
+    <div class="ckpi"><div class="ckpi-label">Completed</div><div class="ckpi-value">${completed}</div><div class="ckpi-sub ok">${compRate}% rate</div></div>
+    <div class="ckpi"><div class="ckpi-label">This month</div><div class="ckpi-value">${thisMonth}</div><div class="ckpi-sub">logged</div></div>
+    <div class="ckpi"><div class="ckpi-label">Flagged</div><div class="ckpi-value">${issues}</div><div class="ckpi-sub ${issues > 0 ? 'warn' : 'ok'}">${issues > 0 ? 'needs review' : 'none'}</div></div>
   `;
 
   // Trend chart by week
