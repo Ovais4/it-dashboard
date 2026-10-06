@@ -1174,7 +1174,10 @@ function buildInfraSection(data) {
   const dataRows = rows.slice(headerIdx + 1).filter(r => r[0] && String(r[0]).trim() !== '');
 
   // Systems = columns 1 onwards (skip Date col)
-  const systems = headers.slice(1).filter(h => h && h !== 'Note' && h !== 'Notes');
+  // Stop at the first blank / auto-named ("Column1"...) / Notes header, so table-converted sheets don't add phantom systems
+  let sysEnd = headers.findIndex((h, i) => i > 0 && (!h || /^column\d+$/i.test(h) || /^notes?$/i.test(h)));
+  if (sysEnd === -1) sysEnd = headers.length;
+  const systems = headers.slice(1, sysEnd);
   const sysCount = systems.length;
 
   // Latest row
